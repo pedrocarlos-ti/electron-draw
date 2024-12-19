@@ -7,6 +7,7 @@ import {
   Tray,
   Menu,
   nativeImage,
+  Display,
 } from "electron";
 
 declare const MAIN_WINDOW_WEBPACK_ENTRY: string;
@@ -16,6 +17,19 @@ let mainWindow: BrowserWindow | null = null;
 let tray: Tray | null = null;
 let isDrawingMode = false;
 let forceQuit = false;
+let currentDisplay: Display;
+
+const moveToDisplay = (display: Display) => {
+  if (!mainWindow) return;
+  
+  currentDisplay = display;
+  mainWindow.setBounds({
+    x: display.bounds.x,
+    y: display.bounds.y,
+    width: display.bounds.width,
+    height: display.bounds.height,
+  });
+};
 
 const createTray = () => {
   const image = nativeImage.createFromPath(
@@ -25,35 +39,52 @@ const createTray = () => {
   tray = new Tray(resizedImage);
   tray.setToolTip("ElectronDraw");
 
-  const contextMenu = Menu.buildFromTemplate([
-    {
-      label: "Toggle Drawing Mode",
-      accelerator: "CommandOrControl+Shift+D",
-      click: toggleDrawingMode,
-    },
-    {
-      label: "Clear Canvas",
-      accelerator: "CommandOrControl+Shift+X",
-      click: () => mainWindow?.webContents.send("clear-canvas"),
-    },
-    { type: "separator" },
-    {
-      label: "Quit",
-      click: () => {
-        forceQuit = true;
-        app.quit();
+  const updateContextMenu = () => {
+    const displays = screen.getAllDisplays();
+    const displayMenuItems = displays.map((display) => ({
+      label: `Move to Display ${display.id} (${display.size.width}x${display.size.height})${
+        display.id === currentDisplay.id ? " ✓" : ""
+      }`,
+      click: () => moveToDisplay(display),
+      checked: display.id === currentDisplay.id,
+      type: 'radio' as const,
+    }));
+
+    const contextMenu = Menu.buildFromTemplate([
+      {
+        label: "Toggle Drawing Mode",
+        accelerator: "CommandOrControl+Shift+D",
+        click: toggleDrawingMode,
       },
-    },
-  ]);
+      {
+        label: "Clear Canvas",
+        accelerator: "CommandOrControl+Shift+X",
+        click: () => mainWindow?.webContents.send("clear-canvas"),
+      },
+      { type: "separator" },
+      {
+        label: "Select Display",
+        submenu: displayMenuItems,
+      },
+      { type: "separator" },
+      {
+        label: "Quit",
+        click: () => {
+          forceQuit = true;
+          app.quit();
+        },
+      },
+    ]);
 
-  tray.setContextMenu(contextMenu);
+    tray.setContextMenu(contextMenu);
+  };
 
-  // Show window on tray icon click
-  tray.on("click", () => {
-    if (mainWindow) {
-      mainWindow.show();
-    }
-  });
+  // Update menu when displays change
+  screen.on('display-added', updateContextMenu);
+  screen.on('display-removed', updateContextMenu);
+  screen.on('display-metrics-changed', updateContextMenu);
+  
+  updateContextMenu();
 };
 
 const createWindow = async () => {
@@ -62,13 +93,11 @@ const createWindow = async () => {
     return;
   }
 
-  const primaryDisplay = screen.getPrimaryDisplay();
-
   mainWindow = new BrowserWindow({
-    width: primaryDisplay.bounds.width,
-    height: primaryDisplay.bounds.height,
-    x: 0,
-    y: 0,
+    width: currentDisplay.bounds.width,
+    height: currentDisplay.bounds.height,
+    x: currentDisplay.bounds.x,
+    y: currentDisplay.bounds.y,
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
@@ -92,14 +121,6 @@ const createWindow = async () => {
   }
 
   mainWindow.setAlwaysOnTop(true, "screen-saver");
-
-  mainWindow.setBounds({
-    x: 0,
-    y: 0,
-    width: primaryDisplay.bounds.width,
-    height: primaryDisplay.bounds.height,
-  });
-
   mainWindow.setIgnoreMouseEvents(true, { forward: true });
 
   await mainWindow.loadURL(MAIN_WINDOW_WEBPACK_ENTRY);
@@ -117,15 +138,7 @@ const toggleDrawingMode = () => {
   if (!mainWindow) return;
 
   isDrawingMode = !isDrawingMode;
-
-  if (isDrawingMode) {
-    mainWindow.setIgnoreMouseEvents(false);
-    mainWindow.show();
-    mainWindow.focus();
-  } else {
-    mainWindow.setIgnoreMouseEvents(true, { forward: true });
-  }
-
+  mainWindow.setIgnoreMouseEvents(!isDrawingMode, { forward: true });
   mainWindow.webContents.send("drawing-mode-changed", isDrawingMode);
 };
 
@@ -133,77 +146,33 @@ const cleanup = () => {
   globalShortcut.unregisterAll();
   if (tray) {
     tray.destroy();
-    tray = null;
   }
-  if (mainWindow) {
-    mainWindow.destroy();
-    mainWindow = null;
-  }
-  forceQuit = true;
 };
 
 app.whenReady().then(async () => {
+  // Initialize currentDisplay after app is ready
+  currentDisplay = screen.getPrimaryDisplay();
+  
   createTray();
   await createWindow();
 
+  // Register global shortcut
   globalShortcut.register("CommandOrControl+Shift+D", toggleDrawingMode);
   globalShortcut.register("CommandOrControl+Shift+X", () => {
-    if (mainWindow) {
-      mainWindow.webContents.send("clear-canvas");
-    }
+    mainWindow?.webContents.send("clear-canvas");
   });
-});
-
-app.on("before-quit", () => {
-  cleanup();
-});
-
-app.on("quit", () => {
-  cleanup();
 });
 
 app.on("window-all-closed", () => {
   if (process.platform !== "darwin") {
-    cleanup();
+    app.quit();
   }
 });
+
+app.on("will-quit", cleanup);
 
 app.on("activate", async () => {
-  if (!mainWindow) {
+  if (BrowserWindow.getAllWindows().length === 0) {
     await createWindow();
-  } else {
-    mainWindow.show();
   }
-});
-
-app.on("second-instance", () => {
-  if (mainWindow) {
-    if (mainWindow.isMinimized()) {
-      mainWindow.restore();
-    }
-    mainWindow.show();
-  }
-});
-
-const gotTheLock = app.requestSingleInstanceLock();
-if (!gotTheLock) {
-  app.quit();
-}
-
-ipcMain.on("toggle-click-through", (_event, enable: boolean) => {
-  if (mainWindow) {
-    if (!isDrawingMode) {
-      mainWindow.setIgnoreMouseEvents(enable, { forward: true });
-    }
-  }
-});
-
-ipcMain.on("set-window-bounds", (_event, bounds: Electron.Rectangle) => {
-  if (mainWindow) {
-    mainWindow.setBounds(bounds);
-  }
-});
-
-ipcMain.on("quit-app", () => {
-  cleanup();
 });
