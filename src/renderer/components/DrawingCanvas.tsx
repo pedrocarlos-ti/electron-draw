@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useDrawStore, DrawingShape } from '../../shared/store';
+import '../styles/cursors.css';
 
 interface Point {
   x: number;
@@ -12,6 +13,12 @@ export const DrawingCanvas: React.FC = () => {
   const [isPainting, setIsPainting] = useState(false);
   const [lastPoint, setLastPoint] = useState<Point | null>(null);
   const { currentTool, color, lineWidth, isDrawing, currentShape, setCurrentShape } = useDrawStore();
+
+  const getCursorClass = () => {
+    if (!isDrawing) return 'cursor-default';
+    if (currentTool === 'eraser') return 'cursor-eraser';
+    return 'cursor-pencil';
+  };
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -194,7 +201,7 @@ export const DrawingCanvas: React.FC = () => {
   return (
     <canvas
       ref={canvasRef}
-      className="absolute inset-0 cursor-crosshair"
+      className={`absolute inset-0 ${getCursorClass()}`}
       onMouseDown={startDrawing}
       onMouseMove={draw}
       onMouseUp={endDrawing}

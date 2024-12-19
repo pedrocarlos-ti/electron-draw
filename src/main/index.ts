@@ -21,7 +21,7 @@ let currentDisplay: Display;
 
 const moveToDisplay = (display: Display) => {
   if (!mainWindow) return;
-  
+
   currentDisplay = display;
   mainWindow.setBounds({
     x: display.bounds.x,
@@ -42,12 +42,12 @@ const createTray = () => {
   const updateContextMenu = () => {
     const displays = screen.getAllDisplays();
     const displayMenuItems = displays.map((display) => ({
-      label: `Move to Display ${display.id} (${display.size.width}x${display.size.height})${
-        display.id === currentDisplay.id ? " ✓" : ""
-      }`,
+      label: `Move to Display ${display.id} (${display.size.width}x${
+        display.size.height
+      })${display.id === currentDisplay.id ? " ✓" : ""}`,
       click: () => moveToDisplay(display),
       checked: display.id === currentDisplay.id,
-      type: 'radio' as const,
+      type: "radio" as const,
     }));
 
     const contextMenu = Menu.buildFromTemplate([
@@ -76,14 +76,14 @@ const createTray = () => {
       },
     ]);
 
-    tray.setContextMenu(contextMenu);
+    tray?.setContextMenu(contextMenu);
   };
 
   // Update menu when displays change
-  screen.on('display-added', updateContextMenu);
-  screen.on('display-removed', updateContextMenu);
-  screen.on('display-metrics-changed', updateContextMenu);
-  
+  screen.on("display-added", updateContextMenu);
+  screen.on("display-removed", updateContextMenu);
+  screen.on("display-metrics-changed", updateContextMenu);
+
   updateContextMenu();
 };
 
@@ -152,7 +152,7 @@ const cleanup = () => {
 app.whenReady().then(async () => {
   // Initialize currentDisplay after app is ready
   currentDisplay = screen.getPrimaryDisplay();
-  
+
   createTray();
   await createWindow();
 

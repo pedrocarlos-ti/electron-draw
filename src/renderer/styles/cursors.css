@@ -1,0 +1,11 @@
+.cursor-pencil {
+  cursor: url('../../assets/pencil-cursor.png') 0 32, crosshair;
+}
+
+.cursor-default {
+  cursor: default;
+}
+
+.cursor-eraser {
+  cursor: crosshair;
+}
