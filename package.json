@@ -6,7 +6,9 @@
   "scripts": {
     "start": "electron-forge start",
     "package": "electron-forge package",
-    "make": "electron-forge make",
+    "package:mac": "electron-forge package --platform darwin",
+    "make": "electron-forge make --platform darwin",
+    "make:dmg": "electron-forge make --platform darwin --targets @electron-forge/maker-dmg",
     "dev": "electron-forge start",
     "test": "jest",
     "lint": "eslint . --ext .ts,.tsx"
@@ -22,6 +24,7 @@
   "devDependencies": {
     "@electron-forge/cli": "^7.2.0",
     "@electron-forge/maker-deb": "^7.2.0",
+    "@electron-forge/maker-dmg": "^7.6.0",
     "@electron-forge/maker-rpm": "^7.2.0",
     "@electron-forge/maker-squirrel": "^7.2.0",
     "@electron-forge/maker-zip": "^7.2.0",
