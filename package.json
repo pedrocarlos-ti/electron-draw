@@ -13,7 +13,7 @@
     "test": "jest",
     "lint": "eslint . --ext .ts,.tsx"
   },
-  "author": "",
+  "author": "Pedro Santos",
   "license": "MIT",
   "dependencies": {
     "electron-squirrel-startup": "^1.0.0",
